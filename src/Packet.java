@@ -40,12 +40,33 @@ public class Packet
 
 	public byte[] serialize()
 	{
-		
+		ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * 5 + payload.length);
+		buffer.putInt(seq_no);
+		buffer.putInt(ack_no);
+		buffer.put((byte) (ack ? 1 : 0));
+		buffer.put((byte) (syn ? 1 : 0));
+		buffer.put((byte) (fin ? 1 : 0));
+		buffer.put(payload);
+		buffer.putInt(checkSum);
+		return buffer.array();
 	}
 
 	public static Packet deserialize(byte[] data)
 	{
-		
+		ByteBuffer buffer = ByteBuffer.wrap(data);
+		int seq_no = buffer.getInt();
+		int ack_no = buffer.getInt();
+		boolean ack = buffer.get() != 0;
+		boolean syn = buffer.get() != 0;
+		boolean fin = buffer.get() != 0;
+		byte[] payload = new byte[data.length - Integer.BYTES * 5];
+		buffer.get(payload);
+		int checkSum = buffer.getInt();
+		Packet Packet = new Packet(seq_no, ack_no, ack, syn, fin, payload);
+		if(packet.calcChecksum() == checkSum) {
+			return packet;
+		} else {
+			return null;  // handle
+		}
 	}
-
 }
