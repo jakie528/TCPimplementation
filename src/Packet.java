@@ -1,9 +1,10 @@
+import java.nio.ByteBuffer;
 public class Packet
 {
 	private int seq_no, ack_no;
 	private boolean ack, syn, fin;
 	private byte[] payload;
-	private int checksum;
+	private static int checksum;
 
 	public Packet(int seq_no, int ack_no, boolean ack, boolean syn, boolean fin, byte[] payload)
 	{
@@ -13,10 +14,10 @@ public class Packet
 		this.syn = syn;
 		this.fin = fin;
 		this.payload = payload;
-		this.checkSum = calcChecksum();
+		this.checksum = calcChecksum();
 	}
 
-	private short calcChecksum()
+	private int calcChecksum()
 	{
 		int checksum = seq_no + ack_no;
 		if(ack)
@@ -34,7 +35,7 @@ public class Packet
 	public int getAckNo() { return ack_no; }
 	public boolean isAck() { return ack; }
 	public boolean isSyn() { return syn; }
-	public boolean is Fin() { return fin; }
+	public boolean isFin() { return fin; }
 	public byte[] getPayload() { return payload; }
 	public int getChecksum() { return checksum; }
 
@@ -47,7 +48,7 @@ public class Packet
 		buffer.put((byte) (syn ? 1 : 0));
 		buffer.put((byte) (fin ? 1 : 0));
 		buffer.put(payload);
-		buffer.putInt(checkSum);
+		buffer.putInt(checksum);
 		return buffer.array();
 	}
 
@@ -62,8 +63,8 @@ public class Packet
 		byte[] payload = new byte[data.length - Integer.BYTES * 5];
 		buffer.get(payload);
 		int checkSum = buffer.getInt();
-		Packet Packet = new Packet(seq_no, ack_no, ack, syn, fin, payload);
-		if(packet.calcChecksum() == checkSum) {
+		Packet packet = new Packet(seq_no, ack_no, ack, syn, fin, payload);
+		if(packet.calcChecksum() == checksum) {
 			return packet;
 		} else {
 			return null;  // handle
