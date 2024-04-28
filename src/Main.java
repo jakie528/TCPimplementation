@@ -9,8 +9,9 @@ public class Main
 			int remotePort = 0;
 			String fileName = "";
 			int mtu = 0;
-			int sws = 0;
+			int sws = 0;  // sliding window size
 			System.out.println("Client");
+
 			for(int i = 0; i < args.length; i++)
 			{
 				if(args[i].equals("-p"))
