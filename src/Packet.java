@@ -70,4 +70,17 @@ public class Packet
 			return null;  // handle
 		}
 	}
+	
+	public void logPacket(String action, long time)
+	{
+		System.out.printf("%s %.3f %c %c %c %c %d %d %d\n", action, time/1e9, 
+				this.isSyn() ? 'S' : '-',
+				this.isAck() ? 'A' : '-',
+				this.isFin() ? 'F' : '-',
+				this.getPayload().length > 0 ? 'D' : '-',
+				this.getSeqNo(),
+				this.getPayload().length,
+				this.getAckNo());
+	}
+
 }

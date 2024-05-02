@@ -3,24 +3,46 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
 
 public class Server
 {
     private DatagramSocket socket;
+    private int mtu;
+    private int sws;
+    private File file;
     private Map<Integer, Integer> clientStates; // Maps client identifier to the next seq_no
+    private FileOutputStream fos;
 
-    public Server(int port) throws Exception {
+    public Server(int port, int mtu, int sws, String fileName) throws Exception {
         socket = new DatagramSocket(port);
         clientStates = new HashMap<>();
+	this.mtu = mtu;
+	this.sws = sws;
+	this.file = new File(fileName);
+	this.fos = new FileOutputStream(fileName, true);
     }
 
     public void listen() throws Exception {
-        byte[] buffer = new byte[1024];  // assuming a buffer size
-        while(true) {
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-            socket.receive(packet);
-            handlePacket(packet);
-        }
+	try
+	{
+        	byte[] buffer = new byte[mtu];  // assuming a buffer size
+        	while(true) {
+        	    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        	    socket.receive(packet);
+        	    handlePacket(packet);
+        	}
+	}
+	finally
+	{
+		if(fos != null)
+		{
+			fos.close();
+		}
+	}
     }
 
     private void handlePacket(DatagramPacket packet) throws Exception {
@@ -33,6 +55,8 @@ public class Server
         if(receivePacket.getSeqNo() == expectedSeqNo) {
             clientStates.put(clientKey, expectedSeqNo + receivePacket.getPayload().length);
             processPayload(receivePacket.getPayload());
+	    receivePacket.logPacket("rcv", System.nanoTime());
+	    fos.write(packet.getData(), 0, packet.getLength());
         }
         // Send ACK for the expected sequence number, regardless of packet order
         sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo);
@@ -58,10 +82,13 @@ public class Server
     }
 
     public Packet receive() throws Exception {
-        byte[] data = new byte[1024];
+        byte[] data = new byte[mtu];
         DatagramPacket receivePacket = new DatagramPacket(data, data.length);
         socket.receive(receivePacket);
-        return Packet.deserialize(receivePacket.getData());
+        Packet packet = Packet.deserialize(receivePacket.getData());
+	if(packet != null)
+		packet.logPacket("rcv", System.nanoTime());
+	return packet;
     }
 
 

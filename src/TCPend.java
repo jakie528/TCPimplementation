@@ -1,11 +1,17 @@
-public class Main
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+
+
+
+public class TCPend 
 {
 	public static void main(String[] args)
 	{
 		if(args.length == 12)
 		{
 			int port = 40000;
-			int remoteIP = 0;
+			String remoteIP = "";
 			int remotePort = 0;
 			String fileName = "";
 			int mtu = 0;
@@ -17,7 +23,7 @@ public class Main
 				if(args[i].equals("-p"))
 					port = Integer.parseInt(args[++i]);
 				else if(args[i].equals("-s"))
-					remoteIP = Integer.parseInt(args[++i]);
+					remoteIP = args[++i];
 				else if(args[i].equals("-a"))
 					remotePort = Integer.parseInt(args[++i]);
 				else if(args[i].equals("-f"))
@@ -29,8 +35,18 @@ public class Main
 				else
 				{
 					System.out.println("Invalid argument " + args[i] + " at " + ++i);
-					break;
+					return;
 				}
+			}
+			try
+			{
+				Client client = new Client(remoteIP, remotePort, port, mtu, sws, fileName);
+				client.sendFile();
+				client.close();
+			}
+			catch(Exception e)
+			{
+				System.out.println(e.getMessage());
 			}
 		}
 		else if(args.length == 8)
@@ -53,8 +69,17 @@ public class Main
 				else
 				{
 					System.out.println("Invalid argument " + args[i] + " at " + ++i);
-					break;
+					return;
 				}
+			}
+			try
+			{
+				Server server = new Server(port, mtu, sws, fileName);
+				server.listen();
+			}
+			catch(Exception e)
+			{
+				System.out.println(e.getMessage());
 			}
 		}
 		else
@@ -62,4 +87,5 @@ public class Main
 			System.out.println("Usage:\n\tClient: java TCPend -p <port> -s <remote_IP> -a <remote_port> -f <file_name> -m <mtu> -c <sws>\n\tServer: java TCPend -p <port> -m <mtu> -c <sws> -f <file_name>");
 		}
 	}
+
 }

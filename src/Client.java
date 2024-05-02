@@ -3,12 +3,16 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.*;
 import java.util.*;
+import java.io.File;
+import java.io.FileInputStream;
 
 public class Client
 {
     private DatagramSocket socket;
     private InetAddress serverAddress;
     private int serverPort;
+    private int port;
+    private File file;
 
     private int mtu;
     private int sws; // Sliding window size
@@ -21,14 +25,24 @@ public class Client
     private double devRTT = 0.0;
     private double timeoutInterval = estimatedRTT * 2;
 
+    private int numDataReceived = 0;
+    private int numDataTransferred = 0;
+    private int numPacketsSent = 0;
+    private int numPacketsReceived = 0;
+    private int numOutOfSeqPackets = 0;
+    private int numChecksumPackets = 0;
+    private int numRetransmissions = 0;
+    private int numDuplicateAcks = 0;
 
-    public Client(String address, int port, int mtu, int sws) throws Exception {
+    public Client(String address, int serverPort, int port, int mtu, int sws, String file) throws Exception {
         this.serverAddress = InetAddress.getByName(address);
-        this.serverPort = port;
+        this.serverPort = serverPort;
+	this.port = port;
         this.mtu = mtu;
         this.sws = sws;
         this.sentPackets = new HashMap<>();
         this.sendTimes = new HashMap<>();
+	this.file = new File(file);
         socket = new DatagramSocket();
         updateSocketTimeout();
     }
@@ -47,15 +61,33 @@ public class Client
             sequenceNumber += payload.length;
 
         }
+	Packet finPacket = new Packet(sequenceNumber, 0, false, false, true, new byte[0]);
     }
+
+    public void sendFile() throws Exception
+    {
+	FileInputStream fis = new FileInputStream(file);
+	byte[] buffer = new byte[mtu];
+	int bytesRead;
+
+	while((bytesRead = fis.read(buffer)) > 0)
+	{
+		send(Arrays.copyOf(buffer, bytesRead));
+	}
+	fis.close();
+	send(new byte[0]);
+    }	    
 
     public void sendPacket(Packet packet) throws Exception {
         sentPackets.put(packet.getSeqNo(), packet);
         byte[] serializedPacket = packet.serialize();
-        DatagramPacket udpPacket = new DatagramPacket(serializedPacket, serializedPacket.length, serverAddress, serverPort);
-        socket.send(udpPacket);
-        sendTimes.put(packet.getSeqNo(), System.nanoTime()); // Store send time for RTT calculation
-
+	if(serializedPacket.length > mtu)
+	{
+		splitPacket(packet);
+		return;
+	}
+	else
+		sendData(packet);
         // Handle retransmissions
         int attempts = 0;
         while (attempts < maxRetransmissions) {
@@ -66,28 +98,68 @@ public class Client
             } catch (SocketTimeoutException e) {
                 attempts++;
                 System.out.println("Retransmitting packet: " + packet.getSeqNo());
-                socket.send(udpPacket); // Retransmit packet
-            }
+		sendData(packet);
+		}
         }
         if (attempts == maxRetransmissions) {
             System.out.println("Failed to receive ACK after maximum attempts: " + packet.getSeqNo());
         }
+	numRetransmissions += attempts;
+	
     }
 
+	private void splitPacket(Packet packet) throws Exception
+	{
+		byte[] payload = packet.getPayload();
+		int header = 20;
+		int maxSize = mtu - header;
+		int length = payload.length;
+		int offset = 0;
 
+
+		while(offset < length)
+		{
+			int chunkLength = Math.min(maxSize, length - offset);
+			byte[] packetChunk = new byte[chunkLength];
+			System.arraycopy(payload, offset, packetChunk, 0, chunkLength);
+			offset += chunkLength;
+
+			Packet chunk = new Packet(packet.getSeqNo() + offset, 0, false, false ,false, packetChunk); 
+			sendData(chunk);
+		}
+	}
     public boolean receiveAck(int originalSeqNo) throws Exception {
-        byte[] buffer = new byte[1024];
+        byte[] buffer = new byte[mtu];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
         socket.receive(packet);
         Packet ackPacket = Packet.deserialize(packet.getData());
+	if(ackPacket == null)
+	{
+		numChecksumPackets++;
+		return false;
+	}
         if(ackPacket!= null && ackPacket.isAck() && ackPacket.getAckNo() == originalSeqNo) {
+	    ackPacket.logPacket("rcv", sendTimes.get(ackPacket.getSeqNo()));
             long sendTime = sendTimes.remove(originalSeqNo);
             long rtt = System.nanoTime() - sendTime;
             updateRTT(rtt);
             sentPackets.remove(originalSeqNo);
+	    numPacketsReceived++;
             return true;
         }
+	numDuplicateAcks++;
         return false;
+    }
+
+    public void sendData(Packet packet) throws Exception
+    {
+	byte[] serialized = packet.serialize();
+	DatagramPacket udpPacket = new DatagramPacket(serialized, serialized.length, serverAddress, serverPort);
+	socket.send(udpPacket);
+	sendTimes.put(packet.getSeqNo(), System.nanoTime()); // Store send time for RTT calculation
+	packet.logPacket("snd" + serialized.length, sendTimes.get(packet.getSeqNo()));
+	numDataTransferred += udpPacket.getLength();
+	numPacketsSent++;
     }
 
     private void updateRTT(long rttSample) throws SocketException {
@@ -103,7 +175,15 @@ public class Client
     }
 
     public void close() {
-
+	System.out.println("Amount of Data transferred: " + numDataTransferred + 
+			"\nAmount of Data received: " + numDataReceived + 
+			"\nAmount of packets sent: " + numPacketsSent + 
+			"\nAmount of packets received: " + numPacketsReceived + 
+			"\nNumber of out-of-sequence packets discarded: " + numOutOfSeqPackets + 
+			"\nNumber of packets discarded due to incorrect checksum: " + numChecksumPackets + 
+			"\nNumber of retransmissions: " + numRetransmissions + 
+			"\nNumber of duplicate acknowledgement: " + numDuplicateAcks);
         socket.close();
+
     }
 }
