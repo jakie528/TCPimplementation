@@ -25,6 +25,32 @@ public class Server
 	this.file = new File(fileName);
 	this.fos = new FileOutputStream(fileName, true);
     }
+    private void handlePacket(DatagramPacket packet) throws Exception {
+        Packet receivePacket = Packet.deserialize(packet.getData());
+        if (receivePacket == null) return;
+
+        int clientKey = getClientKey(packet.getAddress(), packet.getPort());
+        int expectedSeqNo = clientStates.getOrDefault(clientKey, 0);
+
+        if (receivePacket.isSyn() && !receivePacket.isAck()) {
+            System.out.println("SYN received, sending SYN-ACK...");
+            sendSynAck(packet.getAddress(), packet.getPort());
+        } else if (receivePacket.isAck()) {
+            System.out.println("ACK received, handshake complete.");
+            clientStates.put(clientKey, receivePacket.getSeqNo() + 1); // Update the sequence number
+        } else if (receivePacket.getSeqNo() >= expectedSeqNo) {
+            clientStates.put(clientKey, receivePacket.getSeqNo() + receivePacket.getPayload().length);
+            processPayload(receivePacket.getPayload());
+            receivePacket.logPacket("rcv", System.nanoTime());
+            fos.write(packet.getData(), 0, packet.getLength());
+            sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo);
+        }
+    }
+
+    private void sendSynAck(InetAddress address, int port) throws Exception {
+        Packet synAckPacket = new Packet(0, 0, true, true, false, new byte[0], 0);
+        send(synAckPacket, address, port);
+    }
 
     public void listen() throws Exception {
 	try
@@ -45,32 +71,7 @@ public class Server
 	}
     }
 
-    private void handlePacket(DatagramPacket packet) throws Exception {
-        Packet receivePacket = Packet.deserialize(packet.getData());
-        if(receivePacket == null) return;
-        int clientKey = getClientKey(packet.getAddress(), packet.getPort());
-        int expectedSeqNo = clientStates.getOrDefault(clientKey, 0);
 
-        // if received packet is the expected one
-       if(receivePacket.getSeqNo() >= expectedSeqNo) {
-            clientStates.put(clientKey, expectedSeqNo + receivePacket.getPayload().length);
-            processPayload(receivePacket.getPayload());
-	    receivePacket.logPacket("rcv", System.nanoTime());
-	    fos.write(packet.getData(), 0, packet.getLength());
-        }
-	/*
-        if (receivePacket.getSeqNo() >= expectedSeqNo) {
-            if (receivePacket.getSeqNo() == expectedSeqNo) {
-                clientStates.put(clientKey, expectedSeqNo + 1);
-                processPayload(receivePacket.getPayload());
-                fos.write(receivePacket.getPayload(), 0, receivePacket.getPayload().length);
-                receivePacket.logPacket("rcv", System.nanoTime());
-            }
-        sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo + 1);
-        }*/
-        // Send ACK for the expected sequence number, regardless of packet order
-        sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo);
-    }
 
     private void sendAck(InetAddress clientAddress, int clientPort, int ackNo) throws Exception {
         Packet ackPacket = new Packet(0, ackNo, true, false, false, new byte[0], 0);

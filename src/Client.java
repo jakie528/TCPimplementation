@@ -46,6 +46,35 @@ public class Client
         socket = new DatagramSocket(port);
         updateSocketTimeout();
     }
+    public void startHandshake() throws Exception {
+        Packet synPacket = new Packet(0,0,false,true,false,new byte[0],0);
+        sendPacket(synPacket);
+        // wait for SYN-ACK
+        while(!receiveSynAck()) {
+            System.out.println("Waiting for SYN-ACK...");
+            Thread.sleep(1000);
+        }
+        // Send ACK
+        Packet ackPacket = new Packet(1,1,true, false, false, new byte[0], 0);
+        sendPacket(ackPacket);
+        System.out.println("Handshake completed.");
+    }
+
+
+
+    public boolean receiveSynAck() throws Exception {
+        DatagramPacket packet = new DatagramPacket(new byte[mtu], mtu);
+        try {
+            socket.receive(packet);
+            Packet receivedPaket = Packet.deserialize(packet.getData());
+            if(receivedPaket != null && receivedPaket.isAck() && receivedPaket.isSyn()) {
+                return true;
+            }
+        } catch (SocketTimeoutException e) {
+            return false;
+        }
+        return false;
+}
 
     private void updateSocketTimeout() throws SocketException {
         socket.setSoTimeout((int) (timeoutInterval / 1000000)); // Convert nanoseconds to milliseconds
