@@ -43,7 +43,7 @@ public class Client
         this.sentPackets = new HashMap<>();
         this.sendTimes = new HashMap<>();
 	this.file = new File(file);
-        socket = new DatagramSocket();
+        socket = new DatagramSocket(port);
         updateSocketTimeout();
     }
 
@@ -98,7 +98,7 @@ public class Client
             } catch (SocketTimeoutException e) {
                 attempts++;
                 System.out.println("Retransmitting packet: " + packet.getSeqNo());
-		sendData(packet);
+		        sendData(packet);
 		}
         }
         if (attempts == maxRetransmissions) {
