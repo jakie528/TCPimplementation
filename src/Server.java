@@ -52,12 +52,13 @@ public class Server
         int expectedSeqNo = clientStates.getOrDefault(clientKey, 0);
 
         // if received packet is the expected one
-//        if(receivePacket.getSeqNo() >= expectedSeqNo) {
-//            clientStates.put(clientKey, expectedSeqNo + receivePacket.getPayload().length);
-//            processPayload(receivePacket.getPayload());
-//	    receivePacket.logPacket("rcv", System.nanoTime());
-//	    fos.write(packet.getData(), 0, packet.getLength());
-//        }
+       if(receivePacket.getSeqNo() >= expectedSeqNo) {
+            clientStates.put(clientKey, expectedSeqNo + receivePacket.getPayload().length);
+            processPayload(receivePacket.getPayload());
+	    receivePacket.logPacket("rcv", System.nanoTime());
+	    fos.write(packet.getData(), 0, packet.getLength());
+        }
+	/*
         if (receivePacket.getSeqNo() >= expectedSeqNo) {
             if (receivePacket.getSeqNo() == expectedSeqNo) {
                 clientStates.put(clientKey, expectedSeqNo + 1);
@@ -65,8 +66,8 @@ public class Server
                 fos.write(receivePacket.getPayload(), 0, receivePacket.getPayload().length);
                 receivePacket.logPacket("rcv", System.nanoTime());
             }
-            sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo + 1);
-        }
+        sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo + 1);
+        }*/
         // Send ACK for the expected sequence number, regardless of packet order
         sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo);
     }

@@ -51,7 +51,7 @@ public class Client
         socket.setSoTimeout((int) (timeoutInterval / 1000000)); // Convert nanoseconds to milliseconds
     }
 
-    public void send(byte[] data) throws Exception {
+    public int send(byte[] data) throws Exception {
         int sequenceNumber = 0;
         for(int i = 0; i < data.length; i += mtu) {
             int end = Math.min(data.length, i+ mtu);
@@ -61,7 +61,7 @@ public class Client
             sequenceNumber += payload.length;
 
         }
-	Packet finPacket = new Packet(sequenceNumber, 0, false, false, true, new byte[0]);
+	return sequenceNumber;
     }
 
     public void sendFile() throws Exception
@@ -69,11 +69,13 @@ public class Client
 	FileInputStream fis = new FileInputStream(file);
 	byte[] buffer = new byte[mtu];
 	int bytesRead;
-
+	int sequenceNumber = -1;
 	while((bytesRead = fis.read(buffer)) > 0)
 	{
-		send(Arrays.copyOf(buffer, bytesRead));
+		sequenceNumber = send(Arrays.copyOf(buffer, bytesRead));
 	}
+	//Packet finPacket = new Packet(sequenceNumber, 0, false, false, true, new byte[0]);
+	//sendPacket(finPacket);
 	fis.close();
 	send(new byte[0]);
     }	    
@@ -140,6 +142,7 @@ public class Client
 	}
         if(ackPacket!= null && ackPacket.isAck() && ackPacket.getAckNo() == originalSeqNo) {
 	    ackPacket.logPacket("rcv", sendTimes.get(ackPacket.getSeqNo()));
+	    System.out.println("1" + sendTimes.get(ackPacket.getSeqNo())); 
             long sendTime = sendTimes.remove(originalSeqNo);
             long rtt = System.nanoTime() - sendTime;
             updateRTT(rtt);

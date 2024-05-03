@@ -4,7 +4,7 @@ public class Packet
 	private int seq_no, ack_no;
 	private boolean ack, syn, fin;
 	private byte[] payload;
-	private static int checksum;
+	private int checksum;
 
 	public Packet(int seq_no, int ack_no, boolean ack, boolean syn, boolean fin, byte[] payload)
 	{
@@ -44,11 +44,11 @@ public class Packet
 		ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * 5 + payload.length);
 		buffer.putInt(seq_no);
 		buffer.putInt(ack_no);
+		buffer.putInt(checksum);
 		buffer.put((byte) (ack ? 1 : 0));
 		buffer.put((byte) (syn ? 1 : 0));
 		buffer.put((byte) (fin ? 1 : 0));
 		buffer.put(payload);
-		buffer.putInt(checksum);
 		return buffer.array();
 	}
 
@@ -57,16 +57,17 @@ public class Packet
 		ByteBuffer buffer = ByteBuffer.wrap(data);
 		int seq_no = buffer.getInt();
 		int ack_no = buffer.getInt();
+		int checkSum = buffer.getInt();
 		boolean ack = buffer.get() != 0;
 		boolean syn = buffer.get() != 0;
 		boolean fin = buffer.get() != 0;
 		byte[] payload = new byte[data.length - Integer.BYTES * 5];
 		buffer.get(payload);
-		int checkSum = buffer.getInt();
 		Packet packet = new Packet(seq_no, ack_no, ack, syn, fin, payload);
-		if(packet.calcChecksum() == checksum) {
+		if(packet.calcChecksum() == checkSum) {
 			return packet;
 		} else {
+			
 			return null;  // handle
 		}
 	}
