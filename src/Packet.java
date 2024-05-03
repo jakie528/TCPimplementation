@@ -5,8 +5,9 @@ public class Packet
 	private boolean ack, syn, fin;
 	private byte[] payload;
 	private int checksum;
+	private int length;
 
-	public Packet(int seq_no, int ack_no, boolean ack, boolean syn, boolean fin, byte[] payload)
+	public Packet(int seq_no, int ack_no, boolean ack, boolean syn, boolean fin, byte[] payload, int length)
 	{
 		this.seq_no = seq_no;
 		this.ack_no = ack_no;
@@ -14,6 +15,7 @@ public class Packet
 		this.syn = syn;
 		this.fin = fin;
 		this.payload = payload;
+		this.length = length;
 		this.checksum = calcChecksum();
 	}
 
@@ -38,6 +40,7 @@ public class Packet
 	public boolean isFin() { return fin; }
 	public byte[] getPayload() { return payload; }
 	public int getChecksum() { return checksum; }
+	public int getLength() { return length; }
 
 	public byte[] serialize()
 	{
@@ -45,6 +48,7 @@ public class Packet
 		buffer.putInt(seq_no);
 		buffer.putInt(ack_no);
 		buffer.putInt(checksum);
+		buffer.putInt(length);
 		buffer.put((byte) (ack ? 1 : 0));
 		buffer.put((byte) (syn ? 1 : 0));
 		buffer.put((byte) (fin ? 1 : 0));
@@ -58,12 +62,13 @@ public class Packet
 		int seq_no = buffer.getInt();
 		int ack_no = buffer.getInt();
 		int checkSum = buffer.getInt();
+		int length = buffer.getInt();
 		boolean ack = buffer.get() != 0;
 		boolean syn = buffer.get() != 0;
 		boolean fin = buffer.get() != 0;
-		byte[] payload = new byte[data.length - Integer.BYTES * 5];
+		byte[] payload = new byte[data.length - Integer.BYTES * 5 - buffer.position()];
 		buffer.get(payload);
-		Packet packet = new Packet(seq_no, ack_no, ack, syn, fin, payload);
+		Packet packet = new Packet(seq_no, ack_no, ack, syn, fin, payload, length);
 		if(packet.calcChecksum() == checkSum) {
 			return packet;
 		} else {
@@ -78,9 +83,9 @@ public class Packet
 				this.isSyn() ? 'S' : '-',
 				this.isAck() ? 'A' : '-',
 				this.isFin() ? 'F' : '-',
-				this.getPayload().length > 0 ? 'D' : '-',
+				this.getLength() > 0 ? 'D' : '-',
 				this.getSeqNo(),
-				this.getPayload().length,
+				this.getLength(),
 				this.getAckNo());
 	}
 

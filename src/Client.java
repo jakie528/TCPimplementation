@@ -56,7 +56,7 @@ public class Client
         for(int i = 0; i < data.length; i += mtu) {
             int end = Math.min(data.length, i+ mtu);
             byte[] payload = Arrays.copyOfRange(data, i, end);
-            Packet packet = new Packet(sequenceNumber, 0, false, false, false, payload);
+            Packet packet = new Packet(sequenceNumber, 0, false, false, false, payload, payload.length);
             sendPacket(packet);
             sequenceNumber += payload.length;
 
@@ -126,7 +126,7 @@ public class Client
 			System.arraycopy(payload, offset, packetChunk, 0, chunkLength);
 			offset += chunkLength;
 
-			Packet chunk = new Packet(packet.getSeqNo() + offset, 0, false, false ,false, packetChunk); 
+			Packet chunk = new Packet(packet.getSeqNo() + offset, 0, false, false ,false, packetChunk, chunkLength); 
 			sendData(chunk);
 		}
 	}

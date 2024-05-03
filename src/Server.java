@@ -73,7 +73,7 @@ public class Server
     }
 
     private void sendAck(InetAddress clientAddress, int clientPort, int ackNo) throws Exception {
-        Packet ackPacket = new Packet(0, ackNo, true, false, false, new byte[0]);
+        Packet ackPacket = new Packet(0, ackNo, true, false, false, new byte[0], 0);
         byte[] ackData = ackPacket.serialize();
         DatagramPacket ack = new DatagramPacket(ackData, ackData.length, clientAddress, clientPort);
         socket.send(ack);
