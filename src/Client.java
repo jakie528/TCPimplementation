@@ -99,6 +99,7 @@ public class Client
 	byte[] buffer = new byte[mtu];
 	int bytesRead;
 	int sequenceNumber = -1;
+	startHandshake();
 	while((bytesRead = fis.read(buffer)) > 0)
 	{
 		sequenceNumber = send(Arrays.copyOf(buffer, bytesRead));
