@@ -16,6 +16,7 @@ public class Server
     private File file;
     private Map<Integer, Integer> clientStates; // Maps client identifier to the next seq_no
     private FileOutputStream fos;
+    private int seqNo = 0;
 
     public Server(int port, int mtu, int sws, String fileName) throws Exception {
         socket = new DatagramSocket(port);
@@ -31,25 +32,23 @@ public class Server
 
         int clientKey = getClientKey(packet.getAddress(), packet.getPort());
         int expectedSeqNo = clientStates.getOrDefault(clientKey, 0);
+	receivePacket.logPacket("rcv", System.nanoTime());
 
-        if (receivePacket.isSyn() && !receivePacket.isAck()) {
-            System.out.println("SYN received, sending SYN-ACK...");
+        if (receivePacket.isSyn()) {
             sendSynAck(packet.getAddress(), packet.getPort());
-        } else if (receivePacket.isAck()) {
-            System.out.println("ACK received, handshake complete.");
-            clientStates.put(clientKey, receivePacket.getSeqNo() + 1); // Update the sequence number
+        } else if (receivePacket.isAck() && receivePacket.getPayload().length == 0) {
         } else if (receivePacket.getSeqNo() >= expectedSeqNo) {
+		System.out.println(receivePacket.getSeqNo() + " " + expectedSeqNo);
             clientStates.put(clientKey, receivePacket.getSeqNo() + receivePacket.getPayload().length);
-            processPayload(receivePacket.getPayload());
-            receivePacket.logPacket("rcv", System.nanoTime());
-            fos.write(packet.getData(), 0, packet.getLength());
+            fos.write(receivePacket.getPayload(), 0, receivePacket.getLength());
             sendAck(packet.getAddress(), packet.getPort(), expectedSeqNo);
         }
     }
 
     private void sendSynAck(InetAddress address, int port) throws Exception {
-        Packet synAckPacket = new Packet(0, 0, true, true, false, new byte[0], 0);
+        Packet synAckPacket = new Packet(0, 1, true, true, false, new byte[0], 0);
         send(synAckPacket, address, port);
+	synAckPacket.logPacket("snd", System.nanoTime());
     }
 
     public void listen() throws Exception {
@@ -78,9 +77,6 @@ public class Server
         byte[] ackData = ackPacket.serialize();
         DatagramPacket ack = new DatagramPacket(ackData, ackData.length, clientAddress, clientPort);
         socket.send(ack);
-    }
-    private void processPayload(byte[] payload) {
-        System.out.println("Received data: " + new String(payload));
     }
 
     private int getClientKey(InetAddress address, int port) {

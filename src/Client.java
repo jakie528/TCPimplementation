@@ -34,6 +34,8 @@ public class Client
     private int numRetransmissions = 0;
     private int numDuplicateAcks = 0;
 
+    private int ackNo = 0;
+
     public Client(String address, int serverPort, int port, int mtu, int sws, String file) throws Exception {
         this.serverAddress = InetAddress.getByName(address);
         this.serverPort = serverPort;
@@ -50,14 +52,9 @@ public class Client
         Packet synPacket = new Packet(0,0,false,true,false,new byte[0],0);
         sendPacket(synPacket);
         // wait for SYN-ACK
-        while(!receiveSynAck()) {
-            System.out.println("Waiting for SYN-ACK...");
-            Thread.sleep(1000);
-        }
         // Send ACK
         Packet ackPacket = new Packet(1,1,true, false, false, new byte[0], 0);
         sendPacket(ackPacket);
-        System.out.println("Handshake completed.");
     }
 
 
@@ -67,7 +64,10 @@ public class Client
         try {
             socket.receive(packet);
             Packet receivedPaket = Packet.deserialize(packet.getData());
+	    receivedPaket.logPacket("rcv", System.nanoTime());
             if(receivedPaket != null && receivedPaket.isAck() && receivedPaket.isSyn()) {
+		    ackNo = receivedPaket.getAckNo();
+		    numPacketsReceived++;
                 return true;
             }
         } catch (SocketTimeoutException e) {
@@ -85,7 +85,8 @@ public class Client
         for(int i = 0; i < data.length; i += mtu) {
             int end = Math.min(data.length, i+ mtu);
             byte[] payload = Arrays.copyOfRange(data, i, end);
-            Packet packet = new Packet(sequenceNumber, 0, false, false, false, payload, payload.length);
+	    sequenceNumber++;
+            Packet packet = new Packet(sequenceNumber, ackNo, true, false, false, payload, payload.length);
             sendPacket(packet);
             sequenceNumber += payload.length;
 
@@ -107,34 +108,41 @@ public class Client
 	//Packet finPacket = new Packet(sequenceNumber, 0, false, false, true, new byte[0]);
 	//sendPacket(finPacket);
 	fis.close();
-	send(new byte[0]);
     }	    
 
     public void sendPacket(Packet packet) throws Exception {
         sentPackets.put(packet.getSeqNo(), packet);
         byte[] serializedPacket = packet.serialize();
-	if(serializedPacket.length > mtu)
+	/*if(serializedPacket.length > mtu)
 	{
 		splitPacket(packet);
 		return;
 	}
-	else
+	else*/
 		sendData(packet);
         // Handle retransmissions
+		if(packet.isAck() && packet.getPayload().length == 0)
+			return ;
         int attempts = 0;
         while (attempts < maxRetransmissions) {
             try {
+		if(packet.isSyn())
+		{
+        		if(receiveSynAck()) 
+				break;
+		}
+		
                 if (receiveAck(packet.getSeqNo())) {
                     break; // ACK received
                 }
             } catch (SocketTimeoutException e) {
                 attempts++;
-                System.out.println("Retransmitting packet: " + packet.getSeqNo());
 		        sendData(packet);
 		}
         }
         if (attempts == maxRetransmissions) {
             System.out.println("Failed to receive ACK after maximum attempts: " + packet.getSeqNo());
+	    System.exit(1);
         }
 	numRetransmissions += attempts;
 	
@@ -172,11 +180,11 @@ public class Client
 	}
         if(ackPacket!= null && ackPacket.isAck() && ackPacket.getAckNo() == originalSeqNo) {
 	    ackPacket.logPacket("rcv", sendTimes.get(ackPacket.getSeqNo()));
-	    System.out.println("1" + sendTimes.get(ackPacket.getSeqNo())); 
             long sendTime = sendTimes.remove(originalSeqNo);
             long rtt = System.nanoTime() - sendTime;
             updateRTT(rtt);
             sentPackets.remove(originalSeqNo);
+	    ackNo = ackPacket.getAckNo();
 	    numPacketsReceived++;
             return true;
         }
@@ -190,8 +198,8 @@ public class Client
 	DatagramPacket udpPacket = new DatagramPacket(serialized, serialized.length, serverAddress, serverPort);
 	socket.send(udpPacket);
 	sendTimes.put(packet.getSeqNo(), System.nanoTime()); // Store send time for RTT calculation
-	packet.logPacket("snd" + serialized.length, sendTimes.get(packet.getSeqNo()));
-	numDataTransferred += udpPacket.getLength();
+	packet.logPacket("snd", sendTimes.get(packet.getSeqNo()));
+	numDataTransferred += packet.getPayload().length;
 	numPacketsSent++;
     }
 
